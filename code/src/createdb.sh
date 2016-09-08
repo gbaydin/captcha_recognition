@@ -84,7 +84,7 @@ echo "Creating train lmdb..."
 # cleanup: Remove old database
 rm -rf $TRAIN_DB
 
-GLOG_logtostderr=1 $caffe/build/tools/convert_imageset \
+GLOG_logtostderr=1 $caffe/caffe_convert_imageset \
 	--gray \
 	--resize_height=$RESIZE_HEIGHT \
 	--resize_width=$RESIZE_WIDTH \

@@ -33,6 +33,8 @@ import caffe
 import time
 import os
 
+os.makedirs('/home/artifacts/')
+
 from math import log
 from sklearn import svm, datasets
 from sklearn.cross_validation import train_test_split
@@ -48,7 +50,7 @@ import shutil
 
 
 # This function maps the ascii value of a character to a number.
-# 0 -> 0, 1->1, ... 9->9, A->10, B->11, ... Z->35, 
+# 0 -> 0, 1->1, ... 9->9, A->10, B->11, ... Z->35,
 # a->37, b->38, ... z->62
 # there is a small mistkate! The class 36 is never asigned. But it doesn't matter ;)
 def convertCharacterToClass(ascii_value):
@@ -62,7 +64,7 @@ def convertCharacterToClass(ascii_value):
 		# a digit
 		correctClass=ascii_value-48
 	return correctClass
-	
+
 # This function is the inverse function of convertCharacterToClass
 def convertClassToCharacter(predictedClass):
 	if predictedClass < 10:
@@ -83,19 +85,19 @@ def convertClassToCharacter(predictedClass):
 if True:
 	testAfterEveryIterations = 5000
 	for test_iteration in range(int(iteration_previous)+testAfterEveryIterations,int(iteration)+testAfterEveryIterations,testAfterEveryIterations):
-		
+
 		test_iteration=str(test_iteration)
 		print("Testing iteration {0} with final validation images...".format(test_iteration))
-		
+
 		folder_results_iteration = folder_results + test_iteration + "/"
 		model = 'temp/' + name + '/results/data_iter_' + test_iteration + '.caffemodel'
 		solverstate = 'temp/' + name + '/results/data_iter_' + test_iteration + '.solverstate'
-		
-		
+
+
 		# Make classifier.
 		classifier = caffe.Classifier(network,model,gpu=True,mean=None)
-		
-		
+
+
 		numberOfCorrectClassified = 0
 		numberOfNearlyCorrectClassified = 0
 		numberOfTestedFiles = 0
@@ -112,7 +114,7 @@ if True:
 		overallentropy = 0
 		overalluncertainty = 0
 		overallsquaredUncertainty = 0
-		
+
 		start = time.time()
 		for file in os.listdir(folder_final_val):
 			IMAGE_FILE = folder_final_val + file
@@ -120,84 +122,84 @@ if True:
 			correctString = os.path.splitext(file)[0]
 			#convert the string into a list of chars
 			correctChars = list(correctString)
-			
+
 			input_image = caffe.io.load_image(IMAGE_FILE, color=False)
-			
+
 			# convert image to grayscale with 1 channel if it is saved with 3 channels
 			# We assume that all three channels are identical and thus just take the second channel and ignore the others
 			if input_image.shape[2]>1:
 				#print "Converting image to grayscale"
 				input_image = input_image[:,:,1]
 				input_image = np.reshape(input_image, (50,180,1))
-			
+
 			# print input_image
 			inputs = [input_image]
-			
+
 			# Classify.
 			prediction = classifier.predict(inputs, oversample=False)
-			
+
 			predictedString = ""
 			numberOfDigits = 6
 			classesPerDigit = 63
 			numberOfCorrectChars = 0
-			
+
 			entropy = 0
 			uncertainty = 0
 			squaredUncertainty = 0
-			
+
 			for x in xrange(0, numberOfDigits):
-				
+
 				predictedChar = prediction[0][63*x:63*(x+1)]
-				
+
 				# normalize to a sum of 1
 				predictedChar = predictedChar * sum(predictedChar) ** -1
-				
+
 				# first guess
 				predictedClass = predictedChar.argmax()
 				probabilityFirst = predictedChar.max()
 				predictedCharacter = convertClassToCharacter(predictedClass)
 				predictedString+=predictedCharacter
-				
+
 				# secondguess
 				predictedChar[predictedClass]=0
 				predictedClassSecond = predictedChar.argmax()
 				probabilitySecond = predictedChar.max()
 				predictedCharacterSecond = convertClassToCharacter(predictedClassSecond)
-				
+
 				# unceartainty: 0: absolutley certatin, 1: absoluteley uncertain
 				uncertainty = uncertainty + probabilitySecond / probabilityFirst
-				
+
 				# calculate entropy
 				for probability in predictedChar:
 					if probability != 0:
 						entropy = entropy + probability * log(probability, 2)
-				
+
 				# calculate squared uncertainty
 				squaredUncertainty = squaredUncertainty + (1 - probabilityFirst) ** 2
-				
+
 				# was this character predicted correct?
 				if predictedCharacter == correctChars[x]:
 					numberOfCorrectChars+=1
-				
-				
+
+
 				# for confusion matrix: get correct class:
 				ascii_value = ord(correctChars[x])
 				correctClass = convertCharacterToClass(ascii_value)
-				
+
 				# save correct class
 				correctClassesArray[x].append(correctClass)
 				# and save predicted classs
 				predictedClassesArray[x].append(predictedClass)
-				
-			
+
+
 			uncertainty = uncertainty / numberOfDigits
 			entropy = -entropy / log(63, 2) / numberOfDigits
 			squaredUncertainty = squaredUncertainty / numberOfDigits
-			
+
 			overallentropy = overallentropy + entropy
 			overalluncertainty = overalluncertainty + uncertainty
 			overallsquaredUncertainty = overallsquaredUncertainty + squaredUncertainty
-			
+
 			# was the whole sequence predicted correct?
 			if predictedString == correctString:
 				numberOfCorrectClassified+=1
@@ -210,70 +212,70 @@ if True:
 				uncertaintyWrongDigits.append(uncertainty)
 				#squaredUncertaintyWrongDigits.append(squaredUncertainty)
 				#entropyWrongDigits.append(entropy)
-			
+
 			# was only at most one character wrong?
 			if numberOfCorrectChars >= numberOfDigits-1:
 				numberOfNearlyCorrectClassified+=1
-			
+
 			numberOfTestedFiles+=1
 			if numberOfTestedFiles % logAfterEveryFiles == 0:
 				print("{0} files have been processed".format(numberOfTestedFiles))
-	
+
 		#print "Done in %.2f s." % (time.time() - start)
-		
+
 		print("{0} of {1} CAPTCHAs have been classified correctly ({2:2.2f}%)".format(
 		numberOfCorrectClassified, numberOfTestedFiles, float(numberOfCorrectClassified) / numberOfTestedFiles*100))
 		#print("{0} of {1} CAPTCHAs have been classified nearly correctly (at most 1 character wrong) ({2:2.2f}%)".format(
 		#numberOfNearlyCorrectClassified, numberOfTestedFiles, float(numberOfNearlyCorrectClassified) / numberOfTestedFiles*100))
-		
+
 		# write accuracy into the file Output.txt (nicely human readable)
 		text_file = open(folder_results + "Output_accuracy.txt", "a")
 		text_file.write("{0}: {1:2.2f}%\n".format(test_iteration, float(numberOfCorrectClassified) / numberOfTestedFiles*100))
 		text_file.close()
-		
+
 		# write accuracy into the file Output2.txt (nicely to copy into Matlab)
 		text_file = open(folder_results + "Output_accuracy_matlab.txt", "a")
 		text_file.write(",{1:2.2f}".format(test_iteration, float(numberOfCorrectClassified) / numberOfTestedFiles*100))
 		text_file.close()
-		
+
 		# compute the overall entropy, uncertainty and squared uncertaintyy
 		overallentropy = overallentropy / numberOfTestedFiles
 		overalluncertainty = overalluncertainty / numberOfTestedFiles
 		overallsquaredUncertainty = overallsquaredUncertainty / numberOfTestedFiles
-		
+
 		# save overall entropy to the file Output_entropy.txt
 		text_file = open(folder_results + "Output_entropy.txt", "a")
 		text_file.write("{1:2.2f},".format(test_iteration, overallentropy))
 		text_file.close()
-		
+
 		# save overall uncertainty to the file Output_uncertainty.txt
 		text_file = open(folder_results + "Output_uncertainty.txt", "a")
 		text_file.write("{1:2.2f},".format(test_iteration, overalluncertainty))
 		text_file.close()
-		
+
 		# save overall squared uncertainty to the file Output_squareduncertainty.txt
 		text_file = open(folder_results + "Output_squareduncertainty.txt", "a")
 		text_file.write("{1:2.2f},".format(test_iteration, overallsquaredUncertainty))
 		text_file.close()
-		
+
 		# create the folder for the plots (confusion matrices and uncertainty histograms)
 		if not os.path.exists(folder_results_iteration):
 			os.makedirs(folder_results_iteration)
-		
+
 		# save histograms for uncertainty
 		if len(uncertaintyCorrectDigits)>0 :
 			plt.figure()
 			plt.hist(uncertaintyCorrectDigits);
 			plt.title("Histogram: Uncertainty for correct sequences")
 			plt.savefig(folder_results_iteration + 'uncertainty_histogram_for_correct_classified_digits.png', dpi=200)
-		
+
 		if len(uncertaintyWrongDigits)>0 :
 			plt.figure()
 			plt.hist(uncertaintyWrongDigits);
 			plt.title("Histogram: Uncertainty for wrong sequences")
 			plt.savefig(folder_results_iteration + 'uncertainty_histogram_for_wrong_classified_digits.png', dpi=200)
-		
-		
+
+
 		# save confusion matrices
 		for (i, item) in enumerate(predictedClassesArray):
 			cm = confusion_matrix(correctClassesArray[i],predictedClassesArray[i])
@@ -281,21 +283,22 @@ if True:
 			for idx,row in enumerate(cm):
 				#print(cm[0,:]/float(max(cm[0,:])))
 				cm2[idx,:] = row/float(max(1,sum(row)))
-			
+
 			plt.matshow(cm2)
 			plt.title(`(i+1)` + '. Character')
 			plt.colorbar()
 			plt.ylabel('True label')
 			plt.xlabel('Predicted label')
 			plt.savefig(folder_results_iteration + 'confusion_matrix_for_digit_' + `(i+1)` + '.png', dpi=200)
-			
+
 		plt.close('all')
 
 # delete temp files
 if int(test_iteration) != int(iteration):
 	print("Deleting {0}...".format(model))
-	os.remove(model)
-	os.remove(solverstate)
+	#os.remove(model)
+	os.rename(model, "/home/artifacts/data_iter_" + iteration + ".caffemodel")
+	os.rename(model, "/home/artifacts/data_iter_" + test_iteration + ".solverstate")
 
 
 
@@ -328,85 +331,85 @@ for file in os.listdir(folder):
 	correctString = os.path.splitext(file)[0]
 	#convert the string into a list of chars
 	correctChars = list(correctString)
-	
+
 	input_image = caffe.io.load_image(IMAGE_FILE, color=False)
-	
+
 	# convert image to grayscale with 1 channel if it is saved with 3 channels
 	# We assume that all three channels are identical and thus just take the second channel and ignore the others
 	if input_image.shape[2]>1:
 		#print "Converting image to grayscale"
 		input_image = input_image[:,:,1]
 		input_image = np.reshape(input_image, (50,180,1))
-	
+
 	# print input_image
 	inputs = [input_image]
-	
+
 	# Classify.
 	prediction = classifier.predict(inputs, oversample=False)
-	
+
 	predictedString = ""
 	numberOfDigits = 6
 	classesPerDigit = 63
 	numberOfCorrectChars = 0
-	
+
 	entropy = 0
 	uncertainty = 0
 	squaredUncertainty = 0
-	
+
 	for x in xrange(0, numberOfDigits):
-		
+
 		predictedChar = prediction[0][63*x:63*(x+1)]
-		
+
 		# normalize to a sum of 1
 		predictedChar = predictedChar * sum(predictedChar) ** -1
-		
+
 		# first guess
 		predictedClass = predictedChar.argmax()
 		probabilityFirst = predictedChar.max()
 		predictedCharacter = convertClassToCharacter(predictedClass)
 		predictedString+=predictedCharacter
-		
+
 		# secondguess
 		predictedChar[predictedClass]=0
 		predictedClassSecond = predictedChar.argmax()
 		probabilitySecond = predictedChar.max()
 		predictedCharacterSecond = convertClassToCharacter(predictedClassSecond)
-		
+
 		# unceartainty: 0: absolutley certatin, 1: absoluteley uncertain
 		uncertainty = uncertainty + probabilitySecond / probabilityFirst
-		
+
 		# calculate entropy
 		for probability in predictedChar:
 			if probability != 0:
 				entropy = entropy + probability * log(probability, 2)
-		
+
 		# calculate squared uncertainty
 		squaredUncertainty = squaredUncertainty + (1 - probabilityFirst) ** 2
-		
+
 		# was this character predicted correct?
 		if predictedCharacter == correctChars[x]:
 			numberOfCorrectChars+=1
-		
-		
+
+
 		# for confusion matrix: get correct class:
 		ascii_value = ord(correctChars[x])
 		correctClass = convertCharacterToClass(ascii_value)
-		
+
 		# save correct class
 		correctClassesArray[x].append(correctClass)
 		# and save predicted classs
 		predictedClassesArray[x].append(predictedClass)
-		
-	
-	
+
+
+
 	uncertainty = uncertainty / numberOfDigits
 	entropy = -entropy / log(63, 2) / numberOfDigits
 	squaredUncertainty = squaredUncertainty / numberOfDigits
-	
+
 	overallentropy = overallentropy + entropy
 	overalluncertainty = overalluncertainty + uncertainty
 	overallsquaredUncertainty = overallsquaredUncertainty + squaredUncertainty
-	
+
 	# was the whole sequence predicted correct?
 	if predictedString == correctString:
 		numberOfCorrectClassified+=1
@@ -419,16 +422,16 @@ for file in os.listdir(folder):
 		uncertaintyWrongDigits.append(uncertainty)
 		#squaredUncertaintyWrongDigits.append(squaredUncertainty)
 		#entropyWrongDigits.append(entropy)
-	
+
 	# was only at most one character wrong?
 	if numberOfCorrectChars >= numberOfDigits-1:
 		numberOfNearlyCorrectClassified+=1
-	
+
 	numberOfTestedFiles+=1
 	if numberOfTestedFiles % logAfterEveryFiles == 0:
 		print("{0} files have been processed".format(numberOfTestedFiles))
 
-	 
+
 print "Done in %.2f s." % (time.time() - start)
 
 print("{0} of {1} CAPTCHAs have been classified correctly ({2:2.2f}%)".format(
