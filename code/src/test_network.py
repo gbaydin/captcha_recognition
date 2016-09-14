@@ -33,7 +33,8 @@ import caffe
 import time
 import os
 
-os.makedirs('/home/artifacts/')
+#if not os.path.exists('/home/artifacts/'):
+	#os.makedirs('/home/artifacts/')
 
 from math import log
 from sklearn import svm, datasets
@@ -297,8 +298,8 @@ if True:
 if int(test_iteration) != int(iteration):
 	print("Deleting {0}...".format(model))
 	#os.remove(model)
-	os.rename(model, "/home/artifacts/data_iter_" + iteration + ".caffemodel")
-	os.rename(model, "/home/artifacts/data_iter_" + test_iteration + ".solverstate")
+	#os.rename(model, "/home/artifacts/data_iter_" + iteration + ".caffemodel")
+	#os.rename(model, "/home/artifacts/data_iter_" + test_iteration + ".solverstate")
 
 
 
@@ -524,5 +525,5 @@ if int(iteration_previous) > 0:
 	model = 'temp/' + name + '/results/data_iter_' + iteration_previous + '.caffemodel'
 	solverstate = 'temp/' + name + '/results/data_iter_' + iteration_previous + '.solverstate'
 	print("Deleting {0}...".format(model))
-	os.remove(model)
-	os.remove(solverstate)
+	#os.remove(model)
+	#os.remove(solverstate)
